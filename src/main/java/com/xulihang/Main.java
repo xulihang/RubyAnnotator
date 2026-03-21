@@ -23,13 +23,13 @@ public class Main {
             "ぁあぃいぅうぇえぉおかがきぎくぐけげこごさざしじすずせぜそぞただちぢっつづてでとどなにぬねのはばぱひびぴふぶぷへべぺほぼぽまみむめもゃやゅゆょよらりるれろゎわゐゑをんゔゕゖ";
 
     public static void main(String[] args) {
-        //if (args.length < 1) {
-        //    System.out.println("请指定JSON文件路径");
-        //    return;
-        //}
+        if (args.length < 1) {
+            System.out.println("请指定JSON文件路径");
+            return;
+        }
 
-        //String filePath = args[0];
-        String filePath = "test.json";
+        String filePath = args[0];
+        //String filePath = "test.json";
         processJsonFile(filePath);
     }
 
@@ -144,11 +144,13 @@ public class Main {
                     result.append(surface);
                 } else {
                     // 添加ruby标签
+                    String[] segmented = TextSplitter.splitBySameEndingSequence(surfaceHiragana,readingHiragana);
                     result.append("<ruby>")
-                            .append(surface)
+                            .append(segmented[0])
                             .append("<rt>")
-                            .append(readingHiragana)
+                            .append(segmented[2])
                             .append("</rt></ruby>");
+                    result.append(segmented[1]);
                 }
             }
 
