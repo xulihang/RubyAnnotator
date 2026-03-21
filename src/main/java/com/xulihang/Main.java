@@ -154,13 +154,14 @@ public class Main {
                     result.append(surface);
                 } else {
                     // 添加ruby标签
-                    String[] segmented = TextSplitter.splitBySameEndingSequence(surfaceHiragana,readingHiragana);
+                    String[] segmented = TextSplitter.splitByCommonPrefixAndSuffix(surfaceHiragana,readingHiragana);
+                    result.append(segmented[0]);
                     result.append("<ruby>")
-                            .append(segmented[0])
+                            .append(segmented[1])
                             .append("<rt>")
-                            .append(segmented[2])
+                            .append(segmented[4])
                             .append("</rt></ruby>");
-                    result.append(segmented[1]);
+                    result.append(segmented[2]);
                 }
             }
 

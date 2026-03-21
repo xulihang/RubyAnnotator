@@ -3,102 +3,114 @@ package com.xulihang;
 public class TextSplitter {
 
     /**
-     * 获取字符串末尾的连续相同字符序列
-     * 例如："食べべ" -> "べべ"（因为最后两个字符都是'べ'）
-     *      "たべべ" -> "べべ"
-     *      "abc" -> "c"
-     *      "abcc" -> "cc"
+     * 获取两个字符串的最长公共前缀
      */
-    private static String getSuffixSequence(String str) {
-        if (str == null || str.isEmpty()) {
+    private static String getCommonPrefix(String str1, String str2) {
+        if (str1 == null || str2 == null) {
             return "";
         }
 
-        char lastChar = str.charAt(str.length() - 1);
-        int count = 1;
-
-        // 从末尾向前查找连续相同字符
-        for (int i = str.length() - 2; i >= 0; i--) {
-            if (str.charAt(i) == lastChar) {
-                count++;
-            } else {
-                break;
-            }
+        int minLength = Math.min(str1.length(), str2.length());
+        int i = 0;
+        while (i < minLength && str1.charAt(i) == str2.charAt(i)) {
+            i++;
         }
-
-        return str.substring(str.length() - count);
+        return str1.substring(0, i);
     }
 
     /**
-     * 比较两个字符串末尾的连续字符序列，如果相同则分割
+     * 获取两个字符串的最长公共后缀
+     */
+    private static String getCommonSuffix(String str1, String str2) {
+        if (str1 == null || str2 == null) {
+            return "";
+        }
+
+        int len1 = str1.length();
+        int len2 = str2.length();
+        int i = 0;
+        while (i < len1 && i < len2 &&
+                str1.charAt(len1 - 1 - i) == str2.charAt(len2 - 1 - i)) {
+            i++;
+        }
+        return str1.substring(len1 - i);
+    }
+
+    /**
+     * 分割两个字符串的公共前缀和公共后缀
      * @param text1 第一个文本
      * @param text2 第二个文本
-     * @return 分割后的结果数组 [text1Prefix, text1Suffix, text2Prefix, text2Suffix]
-     *         如果末尾连续字符序列不同，返回null
+     * @return 分割后的结果数组 [text1Prefix, text1Middle, text1Suffix, text2Prefix, text2Middle, text2Suffix]
      */
-    public static String[] splitBySameEndingSequence(String text1, String text2) {
+    public static String[] splitByCommonPrefixAndSuffix(String text1, String text2) {
         if (text1 == null || text2 == null || text1.isEmpty() || text2.isEmpty()) {
             return null;
         }
 
-        // 获取末尾连续相同字符序列
-        String suffix1 = getSuffixSequence(text1);
-        String suffix2 = getSuffixSequence(text2);
+        // 获取最长公共前缀
+        String commonPrefix = getCommonPrefix(text1, text2);
 
-        //System.out.println("【分析】");
-        //System.out.println("  \"" + text1 + "\" 末尾连续字符序列: \"" + suffix1 + "\"");
-        //System.out.println("  \"" + text2 + "\" 末尾连续字符序列: \"" + suffix2 + "\"");
+        // 获取最长公共后缀（在去掉公共前缀后的字符串中查找）
+        String remaining1 = text1.substring(commonPrefix.length());
+        String remaining2 = text2.substring(commonPrefix.length());
+        String commonSuffix = getCommonSuffix(remaining1, remaining2);
 
-        // 检查末尾序列是否相同
-        if (!suffix1.equals(suffix2)) {
-            //System.out.println("  → 末尾序列不同，无法分割\n");
-            return new String[]{text1, "", text2, ""};
-        }
+        // 分割文本1
+        String prefix1 = commonPrefix;
+        String suffix1 = commonSuffix;
+        String middle1 = remaining1.substring(0, remaining1.length() - commonSuffix.length());
 
-        //System.out.println("  → 末尾序列相同，进行分割\n");
+        // 分割文本2
+        String prefix2 = commonPrefix;
+        String suffix2 = commonSuffix;
+        String middle2 = remaining2.substring(0, remaining2.length() - commonSuffix.length());
 
-        // 分割文本1：去掉末尾序列
-        String prefix1 = text1.substring(0, text1.length() - suffix1.length());
-
-        // 分割文本2：去掉末尾序列
-        String prefix2 = text2.substring(0, text2.length() - suffix2.length());
-
-        return new String[]{prefix1, suffix1, prefix2, suffix2};
+        return new String[]{prefix1, middle1, suffix1, prefix2, middle2, suffix2};
     }
 
     public static void main(String[] args) {
-        System.out.println("=== 测试1：食べべ 和 たべべ ===");
-        String text1 = "食べべ";
-        String text2 = "たべべ";
+        System.out.println("=== 测试1：お尋 和 おたず ===");
+        String text1 = "お尋ず";
+        String text2 = "おたずず";
 
-        String[] result = splitBySameEndingSequence(text1, text2);
+        String[] result = splitByCommonPrefixAndSuffix(text1, text2);
 
         if (result != null) {
             System.out.println("【分割结果】");
-            System.out.println("  第一个文本: \"" + result[0] + "\" + \"" + result[1] + "\"");
-            System.out.println("  第二个文本: \"" + result[2] + "\" + \"" + result[3] + "\"");
-        } else {
-            System.out.println("无法分割");
+            System.out.println("  第一个文本: \"" + result[0] + "\" + \"" + result[1] + "\" + \"" + result[2] + "\"");
+            System.out.println("  第二个文本: \"" + result[3] + "\" + \"" + result[4] + "\" + \"" + result[5] + "\"");
         }
 
-        System.out.println("\n=== 测试2：食べ 和 たべ ===");
-        String[] result2 = splitBySameEndingSequence("食べ", "たべ");
+        System.out.println("\n=== 测试2：食べべ 和 たべべ ===");
+        String[] result2 = splitByCommonPrefixAndSuffix("食べべ", "たべべ");
         if (result2 != null) {
             System.out.println("【分割结果】");
-            System.out.println("  第一个文本: \"" + result2[0] + "\" + \"" + result2[1] + "\"");
-            System.out.println("  第二个文本: \"" + result2[2] + "\" + \"" + result2[3] + "\"");
-        } else {
-            System.out.println("无法分割");
+            System.out.println("  第一个文本: \"" + result2[0] + "\" + \"" + result2[1] + "\" + \"" + result2[2] + "\"");
+            System.out.println("  第二个文本: \"" + result2[3] + "\" + \"" + result2[4] + "\" + \"" + result2[5] + "\"");
         }
 
-        System.out.println("\n=== 测试3：食べべべ 和 たべべ ===");
-        String[] result3 = splitBySameEndingSequence("食べべべ", "たべべ");
+        System.out.println("\n=== 测试3：おお尋 和 おおたず ===");
+        String[] result3 = splitByCommonPrefixAndSuffix("おお尋", "おおたず");
         if (result3 != null) {
             System.out.println("【分割结果】");
-            System.out.println("  第一个文本: \"" + result3[0] + "\" + \"" + result3[1] + "\"");
-            System.out.println("  第二个文本: \"" + result3[2] + "\" + \"" + result3[3] + "\"");
-        } else {
-            System.out.println("无法分割");
+            System.out.println("  第一个文本: \"" + result3[0] + "\" + \"" + result3[1] + "\" + \"" + result3[2] + "\"");
+            System.out.println("  第二个文本: \"" + result3[3] + "\" + \"" + result3[4] + "\" + \"" + result3[5] + "\"");
+        }
+
+        System.out.println("\n=== 测试4：食べべべ 和 たべべ ===");
+        String[] result4 = splitByCommonPrefixAndSuffix("食べべべ", "たべべ");
+        if (result4 != null) {
+            System.out.println("【分割结果】");
+            System.out.println("  第一个文本: \"" + result4[0] + "\" + \"" + result4[1] + "\" + \"" + result4[2] + "\"");
+            System.out.println("  第二个文本: \"" + result4[3] + "\" + \"" + result4[4] + "\" + \"" + result4[5] + "\"");
+        }
+
+        System.out.println("\n=== 测试5：abcxyz 和 ab123xyz ===");
+        String[] result5 = splitByCommonPrefixAndSuffix("abcxyz", "ab123xyz");
+        if (result5 != null) {
+            System.out.println("【分割结果】");
+            System.out.println("  第一个文本: \"" + result5[0] + "\" + \"" + result5[1] + "\" + \"" + result5[2] + "\"");
+            System.out.println("  第二个文本: \"" + result5[3] + "\" + \"" + result5[4] + "\" + \"" + result5[5] + "\"");
         }
     }
 }
