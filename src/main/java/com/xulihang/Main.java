@@ -61,7 +61,7 @@ public class Main {
                     String targetWithRuby = "";
                     if (targetLang.startsWith("ja")) {
                         targetWithRuby = addJapaneseRuby(target);
-                    }else if (sourceLang.startsWith("zh")){
+                    }else if (targetLang.startsWith("zh")){
                         targetWithRuby = addChineseRuby(target);
                     }
                     boxNode.put("target_markup", targetWithRuby);
