@@ -23,13 +23,13 @@ public class Main {
             "ぁあぃいぅうぇえぉおかがきぎくぐけげこごさざしじすずせぜそぞただちぢっつづてでとどなにぬねのはばぱひびぴふぶぷへべぺほぼぽまみむめもゃやゅゆょよらりるれろゎわゐゑをんゔゕゖ";
 
     public static void main(String[] args) {
-        if (args.length < 1) {
-            System.out.println("请指定JSON文件路径");
-            return;
-        }
+        //if (args.length < 1) {
+        //    System.out.println("请指定JSON文件路径");
+        //    return;
+        //}
 
-        String filePath = args[0];
-        //String filePath = "test.json";
+        //String filePath = args[0];
+        String filePath = "test.json";
         processJsonFile(filePath);
     }
 
@@ -40,19 +40,30 @@ public class Main {
             ObjectNode rootNode = (ObjectNode) objectMapper.readTree(jsonFile);
 
             // 获取boxes数组
+            String sourceLang = rootNode.get("source").asText();
+            String targetLang = rootNode.get("target").asText();
             ArrayNode boxesNode = (ArrayNode) rootNode.get("boxes");
             if (boxesNode != null) {
                 for (int i = 0; i < boxesNode.size(); i++) {
                     ObjectNode boxNode = (ObjectNode) boxesNode.get(i);
                     String source = boxNode.get("source").asText();
                     String target = boxNode.get("target").asText();
-
+                    String sourceWithRuby = "";
+                    if (sourceLang.startsWith("ja")) {
+                        sourceWithRuby = addJapaneseRuby(source);
+                    }else if (sourceLang.startsWith("zh")){
+                        sourceWithRuby = addChineseRuby(source);
+                    }
                     // 为source添加注音
-                    String sourceWithRuby = addJapaneseRuby(source);
                     boxNode.put("source_markup", sourceWithRuby);
 
                     // 为target添加注音
-                    String targetWithRuby = addChineseRuby(target);
+                    String targetWithRuby = "";
+                    if (targetLang.startsWith("ja")) {
+                        targetWithRuby = addJapaneseRuby(target);
+                    }else if (sourceLang.startsWith("zh")){
+                        targetWithRuby = addChineseRuby(target);
+                    }
                     boxNode.put("target_markup", targetWithRuby);
                 }
             }
@@ -128,9 +139,8 @@ public class Main {
                 }
 
                 String readingHiragana = getReadingHiragana(token);
-
                 // 如果读音为空，则不添加ruby
-                if (readingHiragana == null || readingHiragana.isEmpty()) {
+                if (readingHiragana == null || readingHiragana.isEmpty() || readingHiragana.equals("*")) {
                     result.append(surface);
                     continue;
                 }
