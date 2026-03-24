@@ -112,6 +112,57 @@ public class Main {
         StringBuilder result = new StringBuilder();
         for (int i = 0; i < katakana.length(); i++) {
             char c = katakana.charAt(i);
+
+            // 处理长音符号
+            if (c == 'ー' && result.length() > 0) {
+                char prev = result.charAt(result.length() - 1);
+
+                // 检查前一个字符是否是小写假名（拗音部分）
+                boolean isSmallKana = (prev == 'ゃ' || prev == 'ゅ' || prev == 'ょ' ||
+                        prev == 'ぁ' || prev == 'ぃ' || prev == 'ぅ' ||
+                        prev == 'ぇ' || prev == 'ぉ');
+
+                // 如果前一个是小写假名，需要看再前一个假名来确定段
+                if (isSmallKana && result.length() >= 2) {
+                    char prevPrev = result.charAt(result.length() - 2);
+                    String prevPrevStr = String.valueOf(prevPrev);
+                    String prevStr = String.valueOf(prev);
+
+                    // 根据拗音的组合决定长音对应的假名
+                    if (prevStr.equals("ゃ")) {
+                        // きゃ、しゃ、ちゃ、にゃ、ひゃ、みゃ、りゃ、ぎゃ、じゃ、びゃ、ぴゃ
+                        if (prevPrevStr.matches("[きしちにひみりぎじびぴ]")) {
+                            result.append('あ');  // きゃー → きゃあ？不对，应该是きゃあ？
+                            // 实际上きゃー通常转换为きゃあ，但口语中有时是きゃー保持原样
+                        }
+                    } else if (prevStr.equals("ゅ")) {
+                        // きゅ、しゅ、ちゅ、にゅ、ひゅ、みゅ、りゅ、ぎゅ、じゅ、びゅ、ぴゅ
+                        if (prevPrevStr.matches("[きしちにひみりぎじびぴ]")) {
+                            result.append('う');  // きゅー → きゅう
+                        }
+                    } else if (prevStr.equals("ょ")) {
+                        // きょ、しょ、ちょ、にょ、ひょ、みょ、りょ、ぎょ、じょ、びょ、ぴょ
+                        if (prevPrevStr.matches("[きしちにひみりぎじびぴ]")) {
+                            result.append('う');  // きょー → きょう
+                        }
+                    } else {
+                        // 其他小写假名的处理
+                        result.append(getLongVowelForSmallKana(prev, prevPrev));
+                    }
+                } else {
+                    // 正常的长音处理
+                    result.append(getLongVowelForNormalKana(prev));
+                }
+                continue;
+            }
+
+            // 处理促音（小写ッ）
+            if (c == 'ッ' && i + 1 < katakana.length()) {
+                result.append('っ');
+                continue;
+            }
+
+            // 普通片假名转换
             int index = KATAKANA_TO_HIRAGANA.indexOf(c);
             if (index >= 0) {
                 result.append(HIRAGANA.charAt(index));
@@ -120,6 +171,65 @@ public class Main {
             }
         }
         return result.toString();
+    }
+
+    /**
+     * 获取普通假名对应的长音假名
+     */
+    private static char getLongVowelForNormalKana(char prev) {
+        if (prev == 'あ' || prev == 'か' || prev == 'さ' || prev == 'た' || prev == 'な' ||
+                prev == 'は' || prev == 'ま' || prev == 'や' || prev == 'ら' || prev == 'わ' ||
+                prev == 'が' || prev == 'ざ' || prev == 'だ' || prev == 'ば' || prev == 'ぱ') {
+            return 'あ';
+        } else if (prev == 'い' || prev == 'き' || prev == 'し' || prev == 'ち' || prev == 'に' ||
+                prev == 'ひ' || prev == 'み' || prev == 'り' || prev == 'ぎ' || prev == 'じ' ||
+                prev == 'ぢ' || prev == 'び' || prev == 'ぴ') {
+            return 'い';
+        } else if (prev == 'う' || prev == 'く' || prev == 'す' || prev == 'つ' || prev == 'ぬ' ||
+                prev == 'ふ' || prev == 'む' || prev == 'ゆ' || prev == 'る' || prev == 'ぐ' ||
+                prev == 'ず' || prev == 'づ' || prev == 'ぶ' || prev == 'ぷ') {
+            return 'う';
+        } else if (prev == 'え' || prev == 'け' || prev == 'せ' || prev == 'て' || prev == 'ね' ||
+                prev == 'へ' || prev == 'め' || prev == 'れ' || prev == 'げ' || prev == 'ぜ' ||
+                prev == 'で' || prev == 'べ' || prev == 'ぺ') {
+            return 'い';
+        } else if (prev == 'お' || prev == 'こ' || prev == 'そ' || prev == 'と' || prev == 'の' ||
+                prev == 'ほ' || prev == 'も' || prev == 'よ' || prev == 'ろ' || prev == 'ご' ||
+                prev == 'ぞ' || prev == 'ど' || prev == 'ぼ' || prev == 'ぽ') {
+            return 'う';
+        }
+        return 'ー';
+    }
+
+    /**
+     * 获取拗音长音对应的假名
+     */
+    private static char getLongVowelForSmallKana(char smallKana, char prevPrev) {
+        String prevPrevStr = String.valueOf(prevPrev);
+
+        switch (smallKana) {
+            case 'ゃ':
+                // ゃ段长音通常接あ
+                return 'あ';
+            case 'ゅ':
+                // ゅ段长音接う
+                return 'う';
+            case 'ょ':
+                // ょ段长音接う
+                return 'う';
+            case 'ぁ':
+                return 'あ';
+            case 'ぃ':
+                return 'い';
+            case 'ぅ':
+                return 'う';
+            case 'ぇ':
+                return 'い';
+            case 'ぉ':
+                return 'う';
+            default:
+                return 'ー';
+        }
     }
 
     /**
