@@ -9,11 +9,12 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
+import java.util.*;
 
 public class Main {
 
-    private static final Tokenizer tokenizer = new Tokenizer();
+    private static final com.atilika.kuromoji.ipadic.Tokenizer ipaTokenizer;
+    private static final Tokenizer unidicTokenizer;
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     // 片假名到平假名的转换映射表
@@ -22,20 +23,156 @@ public class Main {
     private static final String HIRAGANA =
             "ぁあぃいぅうぇえぉおかがきぎくぐけげこごさざしじすずせぜそぞただちぢっつづてでとどなにぬねのはばぱひびぴふぶぷへべぺほぼぽまみむめもゃやゅゆょよらりるれろゎわゐゑをんゔゕゖ";
 
+    static {
+        // 初始化两种词典
+        ipaTokenizer = new com.atilika.kuromoji.ipadic.Tokenizer.Builder().build();
+        unidicTokenizer = new Tokenizer.Builder().build();
+    }
+
     public static void main(String[] args) {
-        if (args.length < 1) {
-            System.out.println("请指定JSON文件路径");
-            return;
+        // 测试混合分词器
+        String testText = "一匹の子犬。";
+
+        System.out.println("=== IPADic 分词结果 ===");
+        List<com.atilika.kuromoji.ipadic.Token> ipaTokens = ipaTokenizer.tokenize(testText);
+        for (com.atilika.kuromoji.ipadic.Token token : ipaTokens) {
+            System.out.println("完整单词：" + token.getSurface());
+            System.out.println("读音：" + token.getReading());
+            System.out.println(token.getPartOfSpeechLevel2());
+            System.out.println(token.getPartOfSpeechLevel3());
         }
 
-        String filePath = args[0];
-        //String filePath = "test.json";
-        processJsonFile(filePath);
-        //Tokenizer tokenizer = new Tokenizer() ;
-        //List<Token> tokens = tokenizer.tokenize("じゃーこの話あんたにゃ関係ないか。");
-        //for (Token token : tokens) {
-        //   System.out.println(token.getSurface() + "\t" + token.getAllFeatures());
+        System.out.println("\n=== UniDic 分词结果 ===");
+        List<Token> unidicTokens = unidicTokenizer.tokenize(testText);
+        for (Token token : unidicTokens) {
+            System.out.println("完整单词：" + token.getSurface());
+            System.out.println("读音：" + token.getPronunciation());
+            System.out.println(token.getPartOfSpeechLevel2());
+            System.out.println(token.getPartOfSpeechLevel3());
+        }
+
+        System.out.println("\n=== 混合分词结果（最长匹配优先） ===");
+        List<HybridToken> hybridTokens = hybridTokenize(testText);
+        for (HybridToken token : hybridTokens) {
+            System.out.println("完整单词：" + token.surface);
+            System.out.println("读音：" + token.reading);
+            System.out.println("来源：" + token.source);
+        }
+
+        //if (args.length < 1) {
+        //    System.out.println("\n请指定JSON文件路径");
+        //    return;
         //}
+
+        //String filePath = args[0];
+        String filePath = "test.json";
+        processJsonFile(filePath);
+    }
+
+    /**
+     * 混合分词结果类
+     */
+    private static class HybridToken {
+        String surface;
+        String reading;
+        String source; // "ipa" 或 "unidic"
+        String partOfSpeech2;
+        String partOfSpeech3;
+
+        HybridToken(String surface, String reading, String source, String partOfSpeech2, String partOfSpeech3) {
+            this.surface = surface;
+            this.reading = reading;
+            this.source = source;
+            this.partOfSpeech2 = partOfSpeech2;
+            this.partOfSpeech3 = partOfSpeech3;
+        }
+    }
+
+    /**
+     * 混合分词：最长匹配优先策略
+     */
+    private static List<HybridToken> hybridTokenize(String text) {
+        // 获取两种分词结果
+        List<com.atilika.kuromoji.ipadic.Token> ipaTokens = ipaTokenizer.tokenize(text);
+        List<Token> unidicTokens = unidicTokenizer.tokenize(text);
+
+        // 构建位置索引
+        Map<Integer, HybridToken> ipaMap = buildIPAMap(ipaTokens);
+        Map<Integer, HybridToken> unidicMap = buildUniDicMap(unidicTokens);
+
+        // 使用最长匹配优先算法
+        List<HybridToken> result = new ArrayList<>();
+        int pos = 0;
+        int textLength = text.length();
+
+        while (pos < textLength) {
+            HybridToken bestMatch = null;
+            int bestLength = 0;
+
+            // 检查当前位置是否有 UniDic 的分词
+            HybridToken unidicToken = unidicMap.get(pos);
+            if (unidicToken != null && unidicToken.surface.length() > bestLength) {
+                bestMatch = unidicToken;
+                bestLength = unidicToken.surface.length();
+            }
+            // 检查当前位置是否有 IPADic 的分词
+            HybridToken ipaToken = ipaMap.get(pos);
+            if (ipaToken != null && ipaToken.surface.length() > bestLength) {
+                bestMatch = ipaToken;
+                bestLength = ipaToken.surface.length();
+            }
+
+
+
+            if (bestMatch != null) {
+                result.add(bestMatch);
+                pos += bestLength;
+            } else {
+                // 回退：按字符处理
+                result.add(new HybridToken(String.valueOf(text.charAt(pos)),
+                        String.valueOf(text.charAt(pos)),
+                        "fallback","*","*"));
+                pos++;
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * 构建 IPADic 的位置索引
+     */
+    private static Map<Integer, HybridToken> buildIPAMap(List<com.atilika.kuromoji.ipadic.Token> tokens) {
+        Map<Integer, HybridToken> map = new HashMap<>();
+        int pos = 0;
+        for (com.atilika.kuromoji.ipadic.Token token : tokens) {
+            String surface = token.getSurface();
+            String reading = token.getReading();
+            if (reading == null || reading.isEmpty()) {
+                reading = surface;
+            }
+            map.put(pos, new HybridToken(surface, katakanaToHiragana(reading), "ipa", token.getPartOfSpeechLevel2(), token.getPartOfSpeechLevel3()));
+            pos += surface.length();
+        }
+        return map;
+    }
+
+    /**
+     * 构建 UniDic 的位置索引
+     */
+    private static Map<Integer, HybridToken> buildUniDicMap(List<Token> tokens) {
+        Map<Integer, HybridToken> map = new HashMap<>();
+        int pos = 0;
+        for (Token token : tokens) {
+            String surface = token.getSurface();
+            String reading = token.getPronunciation();
+            if (reading == null || reading.isEmpty()) {
+                reading = surface;
+            }
+            map.put(pos, new HybridToken(surface, katakanaToHiragana(reading), "unidic", token.getPartOfSpeechLevel2(), token.getPartOfSpeechLevel3()));
+            pos += surface.length();
+        }
+        return map;
     }
 
     private static void processJsonFile(String filePath) {
@@ -55,7 +192,7 @@ public class Main {
                     String target = boxNode.get("target").asText();
                     String sourceWithRuby = "";
                     if (sourceLang.startsWith("ja")) {
-                        sourceWithRuby = addJapaneseRuby(source);
+                        sourceWithRuby = addJapaneseRubyHybrid(source);
                     }else if (sourceLang.startsWith("zh")){
                         sourceWithRuby = addChineseRuby(source);
                     }
@@ -65,7 +202,7 @@ public class Main {
                     // 为target添加注音
                     String targetWithRuby = "";
                     if (targetLang.startsWith("ja")) {
-                        targetWithRuby = addJapaneseRuby(target);
+                        targetWithRuby = addJapaneseRubyHybrid(target);
                     }else if (targetLang.startsWith("zh")){
                         targetWithRuby = addChineseRuby(target);
                     }
@@ -82,6 +219,63 @@ public class Main {
             e.printStackTrace();
         }
     }
+
+    /**
+     * 使用混合分词器添加日语注音
+     */
+    private static String addJapaneseRubyHybrid(String text) {
+        try {
+            List<HybridToken> tokens = hybridTokenize(text);
+            StringBuilder result = new StringBuilder();
+
+            for (HybridToken token : tokens) {
+                String surface = token.surface;
+
+                // 跳过标点符号和空格
+                if (isJapanesePunctuation(surface)) {
+                    result.append(surface);
+                    continue;
+                }
+
+                // 如果不是汉字，跳过注音
+                if (!isKanji(surface)) {
+                    result.append(surface);
+                    continue;
+                }
+
+                String readingHiragana = token.reading;
+                // 如果读音为空，则不添加ruby
+                if (readingHiragana == null || readingHiragana.isEmpty()) {
+                    result.append(surface);
+                    continue;
+                }
+
+                // 获取当前词本身的读音（用于比较）
+                String surfaceHiragana = convertToHiragana(surface);
+
+                // 如果读音和原文的平假名表示相同，则不添加ruby
+                if (readingHiragana.equals(surfaceHiragana)) {
+                    result.append(surface);
+                } else {
+                    // 添加ruby标签
+                    String[] segmented = TextSplitter.splitByCommonPrefixAndSuffix(surfaceHiragana, readingHiragana);
+                    result.append(segmented[0]);
+                    result.append("<ruby>")
+                            .append(segmented[1])
+                            .append("<rt>")
+                            .append(segmented[4])
+                            .append("</rt></ruby>");
+                    result.append(segmented[2]);
+                }
+            }
+
+            return result.toString();
+        } catch (Exception e) {
+            System.err.println("处理日语文本时出错: " + e.getMessage());
+            return text;
+        }
+    }
+
     /**
      * 判断字符串是否包含汉字
      */
@@ -101,6 +295,7 @@ public class Main {
         }
         return false;
     }
+
     /**
      * 将片假名转换为平假名
      */
@@ -232,140 +427,6 @@ public class Main {
         }
     }
 
-    /**
-     * 获取词的平假名读音
-     */
-    private static String getReadingHiragana(Token token) {
-        String reading = token.getPronunciation();
-        if (reading == null || reading.isEmpty()) {
-            return null;
-        }
-        return katakanaToHiragana(reading);
-    }
-
-    /**
-     * 获取原文的平假名表示（用于比较）
-     */
-    private static String getSurfaceHiragana(Token token) {
-        String surface = token.getSurface();
-        // 对于已经是平假名、片假名的部分，直接转换
-        // 对于汉字部分，需要获取其读音
-        String reading = token.getPronunciation();
-        if (reading != null && !reading.isEmpty()) {
-            return katakanaToHiragana(reading);
-        }
-        return surface;
-    }
-
-    private static String addJapaneseRuby(String text) {
-        try {
-            List<Token> tokens = tokenizer.tokenize(text);
-            StringBuilder result = new StringBuilder();
-
-            for (Token token : tokens) {
-                String surface = token.getSurface();
-
-                // 跳过标点符号和空格
-                if (isJapanesePunctuation(surface)) {
-                    result.append(surface);
-                    continue;
-                }
-
-                // 如果不是汉字，跳过注音
-                if (!isKanji(surface)) {
-                    result.append(surface);
-                    continue;
-                }
-
-                String readingHiragana = getReadingHiragana(token);
-                // 如果读音为空，则不添加ruby
-                if (readingHiragana == null || readingHiragana.isEmpty() || readingHiragana.equals("*")) {
-                    result.append(surface);
-                    continue;
-                }
-
-                // 获取当前词本身的读音（用于比较）
-                // 如果这个词完全是假名（平假名或片假名），那么surfaceHiragana应该等于surface转换后的结果
-                String surfaceHiragana = convertToHiragana(surface);
-
-                // 如果读音和原文的平假名表示相同，则不添加ruby
-                if (readingHiragana.equals(surfaceHiragana)) {
-                    result.append(surface);
-                } else {
-                    // 添加ruby标签
-                    String[] segmented = TextSplitter.splitByCommonPrefixAndSuffix(surfaceHiragana,readingHiragana);
-                    result.append(segmented[0]);
-                    result.append("<ruby>")
-                            .append(segmented[1])
-                            .append("<rt>")
-                            .append(segmented[4])
-                            .append("</rt></ruby>");
-                    result.append(segmented[2]);
-                }
-            }
-
-            return result.toString();
-        } catch (Exception e) {
-            System.err.println("处理日语文本时出错: " + e.getMessage());
-            return text;
-        }
-    }
-
-    /**
-     * 判断字符串是否全部由假名（平假名或片假名）组成
-     */
-    private static boolean isKana(String text) {
-        if (text == null || text.isEmpty()) {
-            return false;
-        }
-
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            // 检查是否为平假名或片假名
-            if (!isHiragana(c) && !isKatakana(c)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * 判断字符是否为平假名
-     */
-    private static boolean isHiragana(char c) {
-        // 平假名的Unicode范围：\u3040-\u309F
-        return c >= '\u3040' && c <= '\u309F';
-    }
-
-    /**
-     * 判断字符是否为片假名
-     */
-    private static boolean isKatakana(char c) {
-        // 片假名的Unicode范围：\u30A0-\u30FF
-        return c >= '\u30A0' && c <= '\u30FF';
-    }
-
-    /**
-     * 将文本转换为平假名（仅转换片假名，汉字保持原样）
-     */
-    private static String convertToHiragana(String text) {
-        if (text == null || text.isEmpty()) {
-            return text;
-        }
-
-        StringBuilder result = new StringBuilder();
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            int index = KATAKANA_TO_HIRAGANA.indexOf(c);
-            if (index >= 0) {
-                result.append(HIRAGANA.charAt(index));
-            } else {
-                result.append(c);
-            }
-        }
-        return result.toString();
-    }
-
     private static String addChineseRuby(String text) {
         StringBuilder result = new StringBuilder();
 
@@ -411,5 +472,26 @@ public class Main {
                 c == '；' || c == '：' || c == '“' || c == '”' ||
                 c == '‘' || c == '’' || c == '（' || c == '）' ||
                 c == '《' || c == '》' || c == '、';
+    }
+
+    /**
+     * 将文本转换为平假名（仅转换片假名，汉字保持原样）
+     */
+    private static String convertToHiragana(String text) {
+        if (text == null || text.isEmpty()) {
+            return text;
+        }
+
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            int index = KATAKANA_TO_HIRAGANA.indexOf(c);
+            if (index >= 0) {
+                result.append(HIRAGANA.charAt(index));
+            } else {
+                result.append(c);
+            }
+        }
+        return result.toString();
     }
 }
