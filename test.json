@@ -1,0 +1,10 @@
+{
+  "source" : "ja",
+  "target" : "zh",
+  "boxes" : [ {
+    "source" : "でかいのは態度だけで後は何もかもが小さい. ",
+    "source_markup" : "でかいのは<ruby>態度<rt>たいど</rt></ruby>だけで<ruby>後<rt>あと</rt></ruby>は<ruby>何<rt>なん</rt></ruby>もかもが<ruby>小<rt>ちー</rt></ruby>さい. ",
+    "target" : "",
+    "target_markup" : ""
+  } ]
+}

@@ -1,7 +1,7 @@
 package com.xulihang;
 
-import com.atilika.kuromoji.ipadic.Token;
-import com.atilika.kuromoji.ipadic.Tokenizer;
+import com.atilika.kuromoji.unidic.Token;
+import com.atilika.kuromoji.unidic.Tokenizer;
 import com.github.houbb.pinyin.util.PinyinHelper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -23,14 +23,19 @@ public class Main {
             "ぁあぃいぅうぇえぉおかがきぎくぐけげこごさざしじすずせぜそぞただちぢっつづてでとどなにぬねのはばぱひびぴふぶぷへべぺほぼぽまみむめもゃやゅゆょよらりるれろゎわゐゑをんゔゕゖ";
 
     public static void main(String[] args) {
-        //if (args.length < 1) {
-        //    System.out.println("请指定JSON文件路径");
-        //    return;
-        //}
+        if (args.length < 1) {
+            System.out.println("请指定JSON文件路径");
+            return;
+        }
 
-        //String filePath = args[0];
-        String filePath = "test.json";
+        String filePath = args[0];
+        //String filePath = "test.json";
         processJsonFile(filePath);
+        //Tokenizer tokenizer = new Tokenizer() ;
+        //List<Token> tokens = tokenizer.tokenize("じゃーこの話あんたにゃ関係ないか。");
+        //for (Token token : tokens) {
+        //   System.out.println(token.getSurface() + "\t" + token.getAllFeatures());
+        //}
     }
 
     private static void processJsonFile(String filePath) {
@@ -77,7 +82,25 @@ public class Main {
             e.printStackTrace();
         }
     }
+    /**
+     * 判断字符串是否包含汉字
+     */
+    private static boolean isKanji(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
 
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            // 汉字的Unicode范围：CJK统一表意文字
+            if ((c >= '\u4E00' && c <= '\u9FFF') ||  // 基本汉字
+                    (c >= '\u3400' && c <= '\u4DBF') ||  // 扩展A
+                    (c >= '\uF900' && c <= '\uFAFF')) {  // 兼容汉字
+                return true;
+            }
+        }
+        return false;
+    }
     /**
      * 将片假名转换为平假名
      */
@@ -103,7 +126,7 @@ public class Main {
      * 获取词的平假名读音
      */
     private static String getReadingHiragana(Token token) {
-        String reading = token.getReading();
+        String reading = token.getPronunciation();
         if (reading == null || reading.isEmpty()) {
             return null;
         }
@@ -117,7 +140,7 @@ public class Main {
         String surface = token.getSurface();
         // 对于已经是平假名、片假名的部分，直接转换
         // 对于汉字部分，需要获取其读音
-        String reading = token.getReading();
+        String reading = token.getPronunciation();
         if (reading != null && !reading.isEmpty()) {
             return katakanaToHiragana(reading);
         }
@@ -134,6 +157,12 @@ public class Main {
 
                 // 跳过标点符号和空格
                 if (isJapanesePunctuation(surface)) {
+                    result.append(surface);
+                    continue;
+                }
+
+                // 如果不是汉字，跳过注音
+                if (!isKanji(surface)) {
                     result.append(surface);
                     continue;
                 }
@@ -170,6 +199,40 @@ public class Main {
             System.err.println("处理日语文本时出错: " + e.getMessage());
             return text;
         }
+    }
+
+    /**
+     * 判断字符串是否全部由假名（平假名或片假名）组成
+     */
+    private static boolean isKana(String text) {
+        if (text == null || text.isEmpty()) {
+            return false;
+        }
+
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            // 检查是否为平假名或片假名
+            if (!isHiragana(c) && !isKatakana(c)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * 判断字符是否为平假名
+     */
+    private static boolean isHiragana(char c) {
+        // 平假名的Unicode范围：\u3040-\u309F
+        return c >= '\u3040' && c <= '\u309F';
+    }
+
+    /**
+     * 判断字符是否为片假名
+     */
+    private static boolean isKatakana(char c) {
+        // 片假名的Unicode范围：\u30A0-\u30FF
+        return c >= '\u30A0' && c <= '\u30FF';
     }
 
     /**
