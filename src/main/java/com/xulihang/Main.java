@@ -30,42 +30,13 @@ public class Main {
     }
 
     public static void main(String[] args) {
-        // 测试混合分词器
-        String testText = "でかいのは態度だけで後は何もかもが小さい. ";
-
-        System.out.println("=== IPADic 分词结果 ===");
-        List<com.atilika.kuromoji.ipadic.Token> ipaTokens = ipaTokenizer.tokenize(testText);
-        for (com.atilika.kuromoji.ipadic.Token token : ipaTokens) {
-            System.out.println("完整单词：" + token.getSurface());
-            System.out.println("读音：" + token.getReading());
-            System.out.println("词性2：" + token.getPartOfSpeechLevel2());
-            System.out.println("词性3：" + token.getPartOfSpeechLevel3());
+        if (args.length < 1) {
+            System.out.println("\n请指定JSON文件路径");
+            return;
         }
 
-        System.out.println("\n=== UniDic 分词结果 ===");
-        List<Token> unidicTokens = unidicTokenizer.tokenize(testText);
-        for (Token token : unidicTokens) {
-            System.out.println("完整单词：" + token.getSurface());
-            System.out.println("读音：" + token.getPronunciation());
-            System.out.println("词性2：" + token.getPartOfSpeechLevel2());
-            System.out.println("词性3：" + token.getPartOfSpeechLevel3());
-        }
-
-        System.out.println("\n=== 混合分词结果（最长匹配优先） ===");
-        List<HybridToken> hybridTokens = hybridTokenize(testText);
-        for (HybridToken token : hybridTokens) {
-            System.out.println("完整单词：" + token.surface);
-            System.out.println("读音：" + token.reading);
-            System.out.println("来源：" + token.source);
-        }
-
-        //if (args.length < 1) {
-        //    System.out.println("\n请指定JSON文件路径");
-        //    return;
-        //}
-
-        //String filePath = args[0];
-        String filePath = "test.json";
+        String filePath = args[0];
+        //String filePath = "test.json";
         processJsonFile(filePath);
     }
 
