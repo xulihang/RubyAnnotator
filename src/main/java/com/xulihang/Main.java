@@ -31,15 +31,15 @@ public class Main {
 
     public static void main(String[] args) {
         // 测试混合分词器
-        String testText = "一匹の子犬。";
+        String testText = "でかいのは態度だけで後は何もかもが小さい. ";
 
         System.out.println("=== IPADic 分词结果 ===");
         List<com.atilika.kuromoji.ipadic.Token> ipaTokens = ipaTokenizer.tokenize(testText);
         for (com.atilika.kuromoji.ipadic.Token token : ipaTokens) {
             System.out.println("完整单词：" + token.getSurface());
             System.out.println("读音：" + token.getReading());
-            System.out.println(token.getPartOfSpeechLevel2());
-            System.out.println(token.getPartOfSpeechLevel3());
+            System.out.println("词性2：" + token.getPartOfSpeechLevel2());
+            System.out.println("词性3：" + token.getPartOfSpeechLevel3());
         }
 
         System.out.println("\n=== UniDic 分词结果 ===");
@@ -47,8 +47,8 @@ public class Main {
         for (Token token : unidicTokens) {
             System.out.println("完整单词：" + token.getSurface());
             System.out.println("读音：" + token.getPronunciation());
-            System.out.println(token.getPartOfSpeechLevel2());
-            System.out.println(token.getPartOfSpeechLevel3());
+            System.out.println("词性2：" + token.getPartOfSpeechLevel2());
+            System.out.println("词性3：" + token.getPartOfSpeechLevel3());
         }
 
         System.out.println("\n=== 混合分词结果（最长匹配优先） ===");
@@ -89,7 +89,7 @@ public class Main {
     }
 
     /**
-     * 混合分词：最长匹配优先策略
+     * 混合分词：最长匹配优先策略，并合并数词+助数词
      */
     private static List<HybridToken> hybridTokenize(String text) {
         // 获取两种分词结果
@@ -122,8 +122,6 @@ public class Main {
                 bestLength = ipaToken.surface.length();
             }
 
-
-
             if (bestMatch != null) {
                 result.add(bestMatch);
                 pos += bestLength;
@@ -136,7 +134,204 @@ public class Main {
             }
         }
 
+        // 合并数词和助数词
+        result = mergeNumberAndCounter(result);
+
         return result;
+    }
+
+    /**
+     * 合并数词和助数词（如：一 + 匹 -> 一匹）
+     * 判断条件：前一个词是数词（词性2为"数"），后一个词是助数词（词性3为"助数詞"）
+     */
+    private static List<HybridToken> mergeNumberAndCounter(List<HybridToken> tokens) {
+        if (tokens == null || tokens.size() < 2) {
+            return tokens;
+        }
+
+        List<HybridToken> merged = new ArrayList<>();
+        int i = 0;
+
+        while (i < tokens.size()) {
+            HybridToken current = tokens.get(i);
+
+            // 检查是否可以合并：当前是数词，且下一个是助数词
+            if (i + 1 < tokens.size()) {
+                HybridToken next = tokens.get(i + 1);
+
+                boolean isNumber = isNumberWord(current);
+                boolean isCounter = isCounterWord(next);
+
+                if (isNumber && isCounter) {
+                    // 合并两个词
+                    String mergedSurface = current.surface + next.surface;
+                    String mergedReading = getMergedReading(current.reading, next.reading, current.surface, next.surface);
+                    String source = current.source + "+" + next.source;
+
+                    HybridToken mergedToken = new HybridToken(
+                            mergedSurface,
+                            mergedReading,
+                            source,
+                            "数詞", // 合并后的词性
+                            "助数詞"
+                    );
+
+                    merged.add(mergedToken);
+                    i += 2; // 跳过已合并的两个词
+                    continue;
+                }
+            }
+
+            // 无法合并，直接添加当前词
+            merged.add(current);
+            i++;
+        }
+
+        return merged;
+    }
+
+    /**
+     * 判断是否为数词
+     */
+    private static boolean isNumberWord(HybridToken token) {
+        if (token == null) return false;
+
+        // 检查词性
+        if (token.partOfSpeech2 != null) {
+            if (token.partOfSpeech2.equals("数") ||
+                    token.partOfSpeech2.contains("数詞") ||
+                    token.partOfSpeech2.equals("数量詞")) {
+                return true;
+            }
+        }
+
+        // 检查表面形式是否为数字或常用数词
+        String surface = token.surface;
+        if (surface.matches("[0-9０-９]+") || // 数字
+                surface.matches("[一二三四五六七八九十百千万億兆]+")) { // 汉字数字
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * 判断是否为助数词（量词）
+     */
+    private static boolean isCounterWord(HybridToken token) {
+        if (token == null) return false;
+
+        // 检查词性
+        if (token.partOfSpeech3 != null) {
+            if (token.partOfSpeech3.equals("助数詞") ||
+                    token.partOfSpeech3.equals("助数詞一般")) {
+                return true;
+            }
+        }
+
+        if (token.partOfSpeech2 != null) {
+            if (token.partOfSpeech2.equals("助数詞")) {
+                return true;
+            }
+        }
+
+        // 常见的助数词表面形式
+        String surface = token.surface;
+        String[] commonCounters = {"匹", "本", "枚", "冊", "個", "つ", "人", "台", "杯", "足",
+                "件", "軒", "階", "回", "皿", "膳", "丁", "錠", "着", "膳"};
+        for (String counter : commonCounters) {
+            if (surface.equals(counter)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * 获取合并后的读音，处理读音变化（连音、促音化等）
+     */
+    private static String getMergedReading(String numberReading, String counterReading,
+                                           String numberSurface, String counterSurface) {
+        if (numberReading == null) numberReading = "";
+        if (counterReading == null) counterReading = "";
+
+        // 特殊情况处理
+        // 一匹: いち + ひき -> いっぴき
+        if (numberSurface.equals("一") && counterSurface.equals("匹")) {
+            return "いっぴき";
+        }
+        // 一冊: いち + さつ -> いっさつ
+        if (numberSurface.equals("一") && counterSurface.equals("冊")) {
+            return "いっさつ";
+        }
+        // 一本: いち + ほん -> いっぽん
+        if (numberSurface.equals("一") && counterSurface.equals("本")) {
+            return "いっぽん";
+        }
+        // 一杯: いち + はい -> いっぱい
+        if (numberSurface.equals("一") && counterSurface.equals("杯")) {
+            return "いっぱい";
+        }
+        // 一階: いち + かい -> いっかい
+        if (numberSurface.equals("一") && counterSurface.equals("階")) {
+            return "いっかい";
+        }
+        // 三匹: さん + ひき -> さんびき
+        if (numberSurface.equals("三") && counterSurface.equals("匹")) {
+            return "さんびき";
+        }
+        // 三本: さん + ほん -> さんぼん
+        if (numberSurface.equals("三") && counterSurface.equals("本")) {
+            return "さんぼん";
+        }
+        // 十本: じゅう + ほん -> じゅっぽん
+        if (numberSurface.equals("十") && counterSurface.equals("本")) {
+            return "じゅっぽん";
+        }
+
+        // 处理促音化
+        // 数词以「ち」结尾，助数词以「は」行开头时 → 促音化+半浊音化
+        if (numberReading.endsWith("ち") && (counterReading.startsWith("は") || counterReading.startsWith("ひ") ||
+                counterReading.startsWith("ふ") || counterReading.startsWith("へ") || counterReading.startsWith("ほ"))) {
+            String base = numberReading.substring(0, numberReading.length() - 1);
+            String counterModified = counterReading;
+            if (counterReading.startsWith("は")) counterModified = "ぱ" + counterReading.substring(1);
+            else if (counterReading.startsWith("ひ")) counterModified = "ぴ" + counterReading.substring(1);
+            else if (counterReading.startsWith("ふ")) counterModified = "ぷ" + counterReading.substring(1);
+            else if (counterReading.startsWith("へ")) counterModified = "ぺ" + counterReading.substring(1);
+            else if (counterReading.startsWith("ほ")) counterModified = "ぽ" + counterReading.substring(1);
+            return base + "っ" + counterModified;
+        }
+
+        // 处理连浊（数词以「ん」结尾，助数词清音变浊音）
+        if (numberReading.endsWith("ん") || numberReading.endsWith("n")) {
+            String counterModified = counterReading;
+            if (counterReading.startsWith("か")) counterModified = "が" + counterReading.substring(1);
+            else if (counterReading.startsWith("き")) counterModified = "ぎ" + counterReading.substring(1);
+            else if (counterReading.startsWith("く")) counterModified = "ぐ" + counterReading.substring(1);
+            else if (counterReading.startsWith("け")) counterModified = "げ" + counterReading.substring(1);
+            else if (counterReading.startsWith("こ")) counterModified = "ご" + counterReading.substring(1);
+            else if (counterReading.startsWith("さ")) counterModified = "ざ" + counterReading.substring(1);
+            else if (counterReading.startsWith("し")) counterModified = "じ" + counterReading.substring(1);
+            else if (counterReading.startsWith("す")) counterModified = "ず" + counterReading.substring(1);
+            else if (counterReading.startsWith("せ")) counterModified = "ぜ" + counterReading.substring(1);
+            else if (counterReading.startsWith("そ")) counterModified = "ぞ" + counterReading.substring(1);
+            else if (counterReading.startsWith("た")) counterModified = "だ" + counterReading.substring(1);
+            else if (counterReading.startsWith("ち")) counterModified = "ぢ" + counterReading.substring(1);
+            else if (counterReading.startsWith("つ")) counterModified = "づ" + counterReading.substring(1);
+            else if (counterReading.startsWith("て")) counterModified = "で" + counterReading.substring(1);
+            else if (counterReading.startsWith("と")) counterModified = "ど" + counterReading.substring(1);
+            else if (counterReading.startsWith("は")) counterModified = "ば" + counterReading.substring(1);
+            else if (counterReading.startsWith("ひ")) counterModified = "び" + counterReading.substring(1);
+            else if (counterReading.startsWith("ふ")) counterModified = "ぶ" + counterReading.substring(1);
+            else if (counterReading.startsWith("へ")) counterModified = "べ" + counterReading.substring(1);
+            else if (counterReading.startsWith("ほ")) counterModified = "ぼ" + counterReading.substring(1);
+            return numberReading + counterModified;
+        }
+
+        // 默认直接拼接
+        return numberReading + counterReading;
     }
 
     /**
